@@ -1,0 +1,52 @@
+# Fetches GET /api/organisms (paginated JSON: total + data), same contract as
+# biogenome-portal CatalogListApi / helpers.resource_mixins.generate_json.
+name: Sync organisms
+
+on:
+  schedule:
+    # 00:00 UTC daily. For local-time midnight, adjust (GitHub cron is UTC-only).
+    - cron: "0 0 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: sync-organisms
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch and update JSONL
+        id: sync
+        env:
+          ORGANISMS_API_URL: https://dades.biogenoma.cat/api/organisms
+          ORGANISMS_JSONL_PATH: ${{ github.workspace }}/data/organisms.jsonl
+        run: python3 scripts/sync_organisms.py
+
+      - name: Commit and push
+        if: steps.sync.outputs.changed == 'true'
+        env:
+          ORGANISMS_API_URL: https://dades.biogenoma.cat/api/organisms
+          ADDED: ${{ steps.sync.outputs.added }}
+          UPDATED: ${{ steps.sync.outputs.updated }}
+          REMOVED: ${{ steps.sync.outputs.removed }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/organisms.jsonl
+          git commit -m "chore(organisms): sync (${ADDED} added, ${UPDATED} updated, ${REMOVED} removed)" -m "Snapshot from ${ORGANISMS_API_URL} (paginated GET)."
+          git push
+
+      - name: Job summary
+        if: always()
+        run: |
+          echo "### Organisms sync" >> "$GITHUB_STEP_SUMMARY"
+          echo "- changed: ${{ steps.sync.outputs.changed }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- added: ${{ steps.sync.outputs.added }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- updated: ${{ steps.sync.outputs.updated }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- removed: ${{ steps.sync.outputs.removed }}" >> "$GITHUB_STEP_SUMMARY"
