@@ -5,7 +5,7 @@ name: Sync organisms
 on:
   schedule:
     # 00:00 UTC daily. For local-time midnight, adjust (GitHub cron is UTC-only).
-    - cron: "0 0 * * *"
+    - cron: "5 0 * * *"
   workflow_dispatch:
 
 concurrency:
